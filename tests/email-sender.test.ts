@@ -58,6 +58,16 @@ test("provider failures reject rather than report delivery success", async () =>
   await assert.rejects(send(message), /Postmark rejected/);
 });
 
+test("Resend receives a stable idempotency key without adding it to the email body", async () => {
+  let request: RequestInit | undefined;
+  const config = parseEnv({ ...process.env, EMAIL_PROVIDER: "resend" });
+  await createEmailSender(config, {
+    fetch: async (_url, init) => { request = init; return new Response("{}", { status: 200 }); },
+  })({ ...message, idempotencyKey: "welcome:user-1" });
+  assert.equal((request?.headers as Record<string, string>)["Idempotency-Key"], "welcome:user-1");
+  assert.equal(JSON.parse(String(request?.body)).idempotencyKey, undefined);
+});
+
 test("Nodemailer delegates the same message to its SMTP transport", async () => {
   const config = parseEnv({ ...process.env, EMAIL_PROVIDER: "nodemailer", SMTP_HOST: "smtp.example.com" });
   let delivered: Record<string, unknown> | undefined;

@@ -20,3 +20,12 @@ export async function sendCodeEmail(to: string, code: string): Promise<void> {
     text: `Your sign-in code is ${code}. It expires in 10 minutes.`,
   });
 }
+
+export async function sendWelcomeEmail(to: string, name: string, idempotencyKey: string): Promise<void> {
+  await sendEmail({
+    to, subject: "Welcome!",
+    html: `<p>Welcome, ${escapeHtml(name)}!</p><p>Your account has been created. Please verify your email address to sign in.</p>`,
+    text: `Welcome, ${name}! Your account has been created. Please verify your email address to sign in.`,
+    idempotencyKey,
+  });
+}

@@ -3,26 +3,32 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/server.ts",
-    "build": "tsc -p tsconfig.json",
-    "start": "node dist/server.js",
+    "dev": "nitro dev",
+    "build": "nitro build",
+    "start": "node .output/server/index.mjs",
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test tests/*.test.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
-    "auth:generate": "auth generate --config ./src/modules/auth/auth.ts --yes"
+    "auth:generate": "auth generate --config ./src/modules/auth/auth.ts --yes",
+    "workflow:bootstrap": "bootstrap"
   },
   "dependencies": {
     "@better-auth/api-key": "^1.7.6",
     "@fastify/cors": "^11.0.0",
+    "@opentelemetry/api": "^1.9.1",
     "@prisma/adapter-pg": "^7.0.0",
     "@prisma/client": "^7.0.0",
+    "@workflow/world-postgres": "^4.3.7",
     "better-auth": "^1.7.0",
     "dotenv": "^17.0.0",
     "fastify": "^5.0.0",
+    "nitro": "^3.0.260903-beta",
     "nodemailer": "^10.0.13",
     "pg": "^8.0.0",
+    "rollup": "^4.63.5",
+    "workflow": "^4.8.9",
     "zod": "^4.0.0"
   },
   "devDependencies": {

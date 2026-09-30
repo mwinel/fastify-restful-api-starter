@@ -8,6 +8,8 @@ import { prisma } from "../../infrastructure/prisma.js";
 import { sendCodeEmail, sendLinkEmail } from "../../infrastructure/mail.js";
 import { ac, isFunctionalRole, roles } from "./permissions.js";
 import { syncEmail2FA } from "./two-factor-policy.js";
+import { start } from "workflow/api";
+import { welcomeEmailWorkflow } from "../../workflows/welcome-email.js";
 
 const organizationKeyOptions = {
   references: "organization" as const,
@@ -27,6 +29,21 @@ export const auth = betterAuth({
   secret: env.BETTER_AUTH_SECRET,
   database: prismaAdapter(prisma, { provider: "postgresql" }),
   trustedOrigins: [env.WEB_ORIGIN],
+  databaseHooks: {
+    user: {
+      create: {
+        after: async (user, ctx) => {
+          if (ctx?.path !== "/sign-up/email") return;
+          try {
+            await start(welcomeEmailWorkflow, [user.id, user.email, user.name]);
+          } catch (error) {
+            // The account exists already. Do not turn a successful signup into a retry.
+            console.error("Failed to enqueue welcome email workflow", error);
+          }
+        },
+      },
+    },
+  },
   hooks: {
     before: createAuthMiddleware(async (ctx) => {
       if (ctx.path === "/two-factor/enable" || ctx.path === "/two-factor/disable") {

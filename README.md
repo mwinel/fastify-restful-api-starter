@@ -10,7 +10,7 @@ Requires Node.js 20+, PostgreSQL, and a configured email provider with an author
 2. Copy `.env.example` to `.env`. Set a strong `BETTER_AUTH_SECRET`, a working `DATABASE_URL`, `MAIL_FROM`, and the credentials for your chosen email provider (Resend by default). `API_ORIGIN` and `WEB_ORIGIN` are exact public origins, without a path.
 3. `npm run db:generate`
 4. `npm run db:deploy` to apply the committed initial migration to your database.
-5. `npm run dev`. The API listens on port 4000 by default.
+5. `npm run dev`. Nitro serves the Fastify API and the workflow runtime on port 4000 by default.
 
 The initial migration was generated from the Prisma schema without connecting to a database. It must be applied to a real PostgreSQL database before signup can work. Do not use the placeholder values from `.env.example` in production.
 
@@ -27,6 +27,14 @@ All authentication emails are sent by Fastify through `src/infrastructure/mail.t
 For SMTP port 465, TLS is enabled by default. On port 587 with credentials, STARTTLS is required so credentials are not sent without transport encryption. Use `SMTP_SECURE=true` for implicit TLS on another port. Invalid or missing settings for the selected provider fail during API startup. Verification, invitations, password reset, and 2FA all use the same sender and include HTML and plain text content. Provider send errors propagate to the calling auth flow; configure and test your provider before enabling 2FA.
 
 For schema changes: edit `prisma/schema.prisma`, run `npm run db:migrate -- --name <change>`, then `npm run db:generate`. If Better Auth settings/plugins change its models, first run `npm run auth:generate`, review the resulting schema diff to preserve domain models and relations, then create a Prisma migration. `auth generate` writes schema only; it does not migrate PostgreSQL. On a completely fresh setup, generate the initial Prisma Client before `auth:generate` because `auth.ts` imports the client.
+
+## Welcome email workflow
+
+Better Auth starts `welcomeEmailWorkflow` only after a new email/password user is created. The workflow has a retryable email step and uses the configured email provider. It runs asynchronously after signup; verification email delivery remains in the existing Better Auth flow. Repeated signups for an existing email do not create a user, so they do not launch a welcome workflow. Resend receives a stable idempotency key for the welcome message, limiting duplicate sends during retries. Postmark and generic SMTP do not provide equivalent deduplication in this implementation; a timeout after provider acceptance may result in another welcome email.
+
+Workflow functions must be compiled by Nitro: use `npm run dev` locally and `npm run build` followed by `npm start` for the Node server. The old `tsx`/`tsc` server entry point is removed. Inspect local workflow runs with `npx workflow inspect runs --web`. Local development uses Workflow's local storage; it is unsuitable for production persistence.
+
+For a self-hosted production deployment, set `WORKFLOW_TARGET_WORLD=@workflow/world-postgres` and `WORKFLOW_POSTGRES_URL` to a PostgreSQL connection string. Run `npm run workflow:bootstrap` before starting the API to install the workflow tables. The Nitro startup plugin starts the Postgres workflow worker, so deploy it as a long-running Node process. Run `npm run db:deploy` separately for the Prisma schema; the workflow bootstrap manages its own tables. See the [Postgres World setup guide](https://workflow-sdk.dev/worlds/postgres).
 
 ## API
 
