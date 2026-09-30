@@ -39,6 +39,7 @@ build/Release
 
 # Dependency directories
 node_modules/
+src/generated/
 jspm_packages/
 
 # Snowpack dependency directory (https://snowpack.dev/)
@@ -141,3 +142,5 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+/.swc
+.workflow-data/
