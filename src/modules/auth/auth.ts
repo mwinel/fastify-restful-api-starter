@@ -2,9 +2,21 @@ import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { organization } from "better-auth/plugins";
 import { APIError } from "better-auth/api";
+import { apiKey } from "@better-auth/api-key";
 import { env } from "../../config/env.js";
 import { prisma } from "../../infrastructure/prisma.js";
 import { sendLinkEmail } from "../../infrastructure/mail.js";
+import { ac, roles } from "./permissions.js";
+
+const organizationKeyOptions = {
+  references: "organization" as const,
+  requireName: true,
+  rateLimit: { enabled: true, timeWindow: 60_000, maxRequests: 120 },
+  keyExpiration: {
+    defaultExpiresIn: 90 * 24 * 60 * 60 * 1000,
+    disableCustomExpiresTime: true,
+  },
+};
 
 export const auth = betterAuth({
   baseURL: env.API_ORIGIN,
@@ -38,6 +50,8 @@ export const auth = betterAuth({
   },
   plugins: [
     organization({
+      ac,
+      roles,
       disableOrganizationDeletion: true,
       requireEmailVerificationOnInvitation: true,
       sendInvitationEmail: async ({ id, email }) => {
@@ -62,5 +76,19 @@ export const auth = betterAuth({
         },
       },
     }),
+    apiKey([
+      {
+        ...organizationKeyOptions,
+        configId: "org-read",
+        defaultPrefix: "org_read_",
+        permissions: { defaultPermissions: { projects: ["read"] } },
+      },
+      {
+        ...organizationKeyOptions,
+        configId: "org-read-write",
+        defaultPrefix: "org_rw_",
+        permissions: { defaultPermissions: { projects: ["read", "write"] } },
+      },
+    ]),
   ],
 });

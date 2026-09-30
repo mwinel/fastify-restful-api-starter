@@ -7,12 +7,14 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test tests/*.test.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "auth:generate": "auth generate --config ./src/modules/auth/auth.ts --yes"
   },
   "dependencies": {
+    "@better-auth/api-key": "^1.7.6",
     "@fastify/cors": "^11.0.0",
     "@prisma/adapter-pg": "^7.0.0",
     "@prisma/client": "^7.0.0",
