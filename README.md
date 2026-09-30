@@ -4,15 +4,27 @@ Fastify + Better Auth organization and email/password authentication, Prisma 7/P
 
 ## Setup
 
-Requires Node.js 20+, PostgreSQL, and a Resend API key with a verified sender.
+Requires Node.js 20+, PostgreSQL, and a configured email provider with an authorized sender.
 
 1. `npm ci`
-2. Copy `.env.example` to `.env`. Set a strong `BETTER_AUTH_SECRET`, a working `DATABASE_URL`, `RESEND_API_KEY`, and a verified `MAIL_FROM`. `API_ORIGIN` and `WEB_ORIGIN` are exact public origins, without a path.
+2. Copy `.env.example` to `.env`. Set a strong `BETTER_AUTH_SECRET`, a working `DATABASE_URL`, `MAIL_FROM`, and the credentials for your chosen email provider (Resend by default). `API_ORIGIN` and `WEB_ORIGIN` are exact public origins, without a path.
 3. `npm run db:generate`
 4. `npm run db:deploy` to apply the committed initial migration to your database.
 5. `npm run dev`. The API listens on port 4000 by default.
 
 The initial migration was generated from the Prisma schema without connecting to a database. It must be applied to a real PostgreSQL database before signup can work. Do not use the placeholder values from `.env.example` in production.
+
+## Email provider
+
+All authentication emails are sent by Fastify through `src/infrastructure/mail.ts`. Choose one transport at deployment; no Next.js provider credentials are needed.
+
+| `EMAIL_PROVIDER` | Required configuration | Notes |
+| --- | --- | --- |
+| `resend` (default) | `RESEND_API_KEY`, `MAIL_FROM` | Sender domain must be verified with Resend. |
+| `postmark` | `POSTMARK_SERVER_TOKEN`, `MAIL_FROM` | Use a server token and an approved sender signature or verified domain. |
+| `nodemailer` | `SMTP_HOST`, `MAIL_FROM` | Defaults to port 587; set `SMTP_PORT`, `SMTP_SECURE`, and optionally both `SMTP_USER` and `SMTP_PASSWORD`. |
+
+For SMTP port 465, TLS is enabled by default. On port 587 with credentials, STARTTLS is required so credentials are not sent without transport encryption. Use `SMTP_SECURE=true` for implicit TLS on another port. Invalid or missing settings for the selected provider fail during API startup. Verification, invitations, password reset, and 2FA all use the same sender and include HTML and plain text content. Provider send errors propagate to the calling auth flow; configure and test your provider before enabling 2FA.
 
 For schema changes: edit `prisma/schema.prisma`, run `npm run db:migrate -- --name <change>`, then `npm run db:generate`. If Better Auth settings/plugins change its models, first run `npm run auth:generate`, review the resulting schema diff to preserve domain models and relations, then create a Prisma migration. `auth generate` writes schema only; it does not migrate PostgreSQL. On a completely fresh setup, generate the initial Prisma Client before `auth:generate` because `auth.ts` imports the client.
 
