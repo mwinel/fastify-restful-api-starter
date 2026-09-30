@@ -29,3 +29,21 @@ export async function sendWelcomeEmail(to: string, name: string, idempotencyKey:
     idempotencyKey,
   });
 }
+
+export async function sendProjectChangeEmail(input: {
+  to: string;
+  organizationName: string;
+  projectName: string;
+  action: "created" | "updated";
+  idempotencyKey: string;
+}): Promise<void> {
+  const subject = `Project ${input.action}`;
+  const text = `${input.projectName} was ${input.action} in ${input.organizationName}.`;
+  await sendEmail({
+    to: input.to,
+    subject,
+    text,
+    html: `<p><strong>${escapeHtml(input.projectName)}</strong> was ${input.action} in ${escapeHtml(input.organizationName)}.</p>`,
+    idempotencyKey: input.idempotencyKey,
+  });
+}

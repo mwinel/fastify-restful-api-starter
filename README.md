@@ -36,6 +36,12 @@ Workflow functions must be compiled by Nitro: use `npm run dev` locally and `npm
 
 For a self-hosted production deployment, set `WORKFLOW_TARGET_WORLD=@workflow/world-postgres` and `WORKFLOW_POSTGRES_URL` to a PostgreSQL connection string. Run `npm run workflow:bootstrap` before starting the API to install the workflow tables. The Nitro startup plugin starts the Postgres workflow worker, so deploy it as a long-running Node process. Run `npm run db:deploy` separately for the Prisma schema; the workflow bootstrap manages its own tables. See the [Postgres World setup guide](https://workflow-sdk.dev/worlds/postgres).
 
+## Project change notifications
+
+`POST /v1/organizations/:organizationId/projects` and `PATCH /v1/organizations/:organizationId/projects/:projectId` commit the project change and then enqueue `projectChangeWorkflow`. The workflow first loads the organization's current members, then sends one email per member in batches of ten. The member who made the change also receives an email. The workflow passes only the project change and organization ID to the queue; it resolves recipients from the database when its recipient step runs. Missing projects, invalid input, and denied requests do not start a workflow. The API waits for the enqueue operation, not for email delivery; provider failures are retried by the workflow step.
+
+The module keeps input schemas in `src/modules/projects/schemas.ts`, database operations in `service.ts`, workflow dispatch in `notifications.ts`, and HTTP handling in `routes.ts`. The worker logic lives in `src/workflows/project-change.ts`. Both the write and follow-up read for updates include the organization ID. A failed workflow enqueue is logged without turning an already committed project change into an HTTP failure; an operational monitor should alert on enqueue errors. Resend receives a stable key per event and recipient to reduce duplicate delivery on retries. Postmark and SMTP may send duplicates after an ambiguous delivery failure.
+
 ## API
 
 | Operation | Route |
@@ -53,6 +59,7 @@ For a self-hosted production deployment, set `WORKFLOW_TARGET_WORLD=@workflow/wo
 | Invitation role options | `GET /v1/organization-roles` |
 | List projects | `GET /v1/organizations/:organizationId/projects` |
 | Create project | `POST /v1/organizations/:organizationId/projects` |
+| Update project | `PATCH /v1/organizations/:organizationId/projects/:projectId` |
 | Create API key | `POST /api/auth/api-key/create` |
 | List API keys | `GET /api/auth/api-key/list?organizationId=...` |
 | Revoke API key | `POST /api/auth/api-key/delete` |
@@ -67,7 +74,7 @@ Email verification is required before sign-in. Invitees receive one of the prede
 | Editor | Yes | Yes | Yes | |
 | Manager | Yes | Yes | Yes | Yes |
 
-Owner and admin have all four project permissions plus their organization management permissions. Existing Better Auth `member` records retain read access. The project example currently implements list (`project:read`) and create (`project:create`); use the corresponding action in `requireOrganizationAccess` when adding update and delete routes. The guard queries membership for every session request, so removed members lose access immediately and no active organization cookie decides the tenant. Unknown roles fail closed. API keys use independent organization scopes and the same project action names.
+Owner and admin have all four project permissions plus their organization management permissions. Existing Better Auth `member` records retain read access. Project routes implement list (`project:read`), create (`project:create`), and update (`project:update`); use `project:delete` when adding deletion. The guard queries membership for every session request, so removed members lose access immediately and no active organization cookie decides the tenant. Unknown roles fail closed. API keys use independent organization scopes and the same project action names.
 
 Better Auth rate limits sign-up, sign-in, reset requests, and invitations. Limits use the shared PostgreSQL `rateLimit` table so they work across API instances. Put the API behind a trusted proxy and forward the actual client IP; do not accept arbitrary client-supplied forwarding headers.
 
@@ -86,9 +93,10 @@ Organization owners and admins can create, list, and revoke keys using their sig
 | `configId` | Data access |
 | --- | --- |
 | `org-read` | `GET /v1/organizations/:organizationId/projects` |
-| `org-read-write` | GET and `POST /v1/organizations/:organizationId/projects` |
+| `org-read-write` | GET, POST, and PATCH project routes |
 
-The read preset grants `project:read`; the read-write preset grants `project:read` and `project:create`. A key cannot call future update/delete routes without those actions explicitly granted.
+The read preset grants `project:read`; the read-write preset grants `project:read`, `project:create`, and `project:update`. A key cannot call a future delete route without that action explicitly granted.
+Existing read-write keys created before this change retain their stored permissions; issue replacement keys to grant `project:update`.
 
 Use `examples/nextjs/create-api-key.ts` to create a key with a 30, 60, or 90 day duration, or a custom date between 1 and 365 days away. For example, `createOrganizationApiKey({ organizationId, name: "Partner app", access: "read-write", expiration: 60 })`. A date-only string such as `"2026-12-31"` expires at the end of that day in the browser's local timezone. Better Auth receives `expiresIn` in **seconds** and enforces the 1–365 day range on the server; if a caller omits it, the default is 90 days. Creation returns an opaque `key` value. **Show and copy this secret once**; subsequent list/get calls return only metadata, not the secret. The key itself is the credential: there is no separate client ID and secret pair. Keys are hashed in the database and limited to 120 verifications per minute. Use `authClient.apiKey.list({ query: { organizationId } })` to view metadata and `authClient.apiKey.delete({ configId, keyId })` to revoke immediately. Create a replacement before the old key expires.
 

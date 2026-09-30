@@ -129,7 +129,7 @@ export const auth = betterAuth({
         ...organizationKeyOptions,
         configId: "org-read-write",
         defaultPrefix: "org_rw_",
-        permissions: { defaultPermissions: { project: ["read", "create"] } },
+        permissions: { defaultPermissions: { project: ["read", "create", "update"] } },
       },
     ]),
   ],
