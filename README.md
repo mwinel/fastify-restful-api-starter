@@ -36,6 +36,8 @@ For schema changes: edit `prisma/schema.prisma`, run `npm run db:migrate -- --na
 | Create API key | `POST /api/auth/api-key/create` |
 | List API keys | `GET /api/auth/api-key/list?organizationId=...` |
 | Revoke API key | `POST /api/auth/api-key/delete` |
+| Read organization 2FA setting | `GET /v1/organizations/:organizationId/security` |
+| Update organization 2FA setting | `PUT /v1/organizations/:organizationId/security` |
 
 Email verification is required before sign-in. Invitees receive one of the predefined functional roles below. Fetch `GET /v1/organization-roles` to populate a role picker, then pass the selected `id` as `role` to Better Auth's `organization.inviteMember({ organizationId, email, role })`. The server rejects owner, admin, legacy member, unknown, and combined roles during invitation. Better Auth's default owner/admin permissions control sending invitations and removing members. Owner removal and role changes are disabled; organization deletion is disabled. These policies are enforced by Better Auth organization hooks, not the UI.
 
@@ -48,6 +50,14 @@ Email verification is required before sign-in. Invitees receive one of the prede
 Owner and admin have all four project permissions plus their organization management permissions. Existing Better Auth `member` records retain read access. The project example currently implements list (`project:read`) and create (`project:create`); use the corresponding action in `requireOrganizationAccess` when adding update and delete routes. The guard queries membership for every session request, so removed members lose access immediately and no active organization cookie decides the tenant. Unknown roles fail closed. API keys use independent organization scopes and the same project action names.
 
 Better Auth rate limits sign-up, sign-in, reset requests, and invitations. Limits use the shared PostgreSQL `rateLimit` table so they work across API instances. Put the API behind a trusted proxy and forward the actual client IP; do not accept arbitrary client-supplied forwarding headers.
+
+## Email two-factor authentication
+
+Set `REQUIRE_EMAIL_2FA=true` on the API to require email 2FA globally (default: `false`). An organization owner or admin can also set `PUT /v1/organizations/:organizationId/security` with `{ "requireEmail2FA": true }` using their signed-in session. `GET` returns the saved value and `enforcedByEnvironment`; the environment flag takes precedence. Only owner/admin browser sessions can read or change this setting; API keys cannot. For users in several organizations, any organization requiring 2FA makes it mandatory for that account. Changes take effect on the next password sign-in; existing sessions continue until their normal expiry. Updating an organization setting invalidates remembered devices for its current members.
+
+On email/password sign-in, Better Auth checks the policy and returns `twoFactorRedirect: true` when a code is required. No authenticated session is issued until verification succeeds. The Next.js client calls `twoFactor.sendOtp()`, then `twoFactor.verifyOtp({ code, trustDevice: true })`; see `examples/nextjs/email-2fa.ts`. The six-digit email code expires in 10 minutes. A successfully verified device is trusted for 90 days, refreshed on successful sign-ins; a new device or one unused for 90 days receives a new challenge. Codes are encrypted at rest in Better Auth's verification store. The server manages the 2FA enrollment flag from the effective policy, so the ordinary enable/disable endpoints are blocked. This applies to credential sign-in; adding OAuth or passwordless login later requires its own 2FA gate. Email is the second factor here, so access to a compromised mailbox can defeat it; an authenticator app or passkey is stronger for sensitive accounts.
+
+Apply the `20260930073000_email_2fa` migration before deploying the new API version. It adds Better Auth's two-factor schema and the organization security setting. Configure the email provider before enabling the policy.
 
 ## Organization API keys
 

@@ -4,6 +4,7 @@ import { env } from "./config/env.js";
 import { registerAuthRoute } from "./modules/auth/auth.route.js";
 import { registerProjectRoutes } from "./modules/projects/routes.js";
 import { invitationRoleOptions } from "./modules/auth/permissions.js";
+import { registerSecurityRoutes } from "./modules/auth/security.routes.js";
 
 export async function buildApp() {
   const app = Fastify({
@@ -19,6 +20,7 @@ export async function buildApp() {
   app.get("/health", async () => ({ status: "ok" }));
   app.get("/v1/organization-roles", async () => invitationRoleOptions);
   registerAuthRoute(app);
+  registerSecurityRoutes(app);
   registerProjectRoutes(app);
   return app;
 }

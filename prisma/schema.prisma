@@ -34,6 +34,9 @@ model User {
   members       Member[]
   invitations   Invitation[]
 
+  twoFactorEnabled Boolean?    @default(false)
+  twofactors       TwoFactor[]
+
   @@unique([email])
   @@map("user")
 }
@@ -88,18 +91,26 @@ model Verification {
 }
 
 model Organization {
-  id          String       @id
-  name        String
-  slug        String
-  logo        String?
-  createdAt   DateTime
-  metadata    String?
-  members     Member[]
-  invitations Invitation[]
-  projects    Project[]
+  id             String                      @id
+  name           String
+  slug           String
+  logo           String?
+  createdAt      DateTime
+  metadata       String?
+  members        Member[]
+  invitations    Invitation[]
+  projects       Project[]
+  securityPolicy OrganizationSecurityPolicy?
 
   @@unique([slug])
   @@map("organization")
+}
+
+model OrganizationSecurityPolicy {
+  organizationId  String       @id
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  requireEmail2FA Boolean      @default(false)
+  updatedAt       DateTime     @updatedAt
 }
 
 model Member {
@@ -172,4 +183,19 @@ model Apikey {
   @@index([referenceId])
   @@index([key])
   @@map("apikey")
+}
+
+model TwoFactor {
+  id                      String    @id
+  secret                  String
+  backupCodes             String
+  userId                  String
+  user                    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  verified                Boolean?  @default(true)
+  failedVerificationCount Int?      @default(0)
+  lockedUntil             DateTime?
+
+  @@index([secret])
+  @@index([userId])
+  @@map("twoFactor")
 }

@@ -1,12 +1,13 @@
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
-import { organization } from "better-auth/plugins";
-import { APIError } from "better-auth/api";
+import { organization, twoFactor } from "better-auth/plugins";
+import { APIError, createAuthMiddleware } from "better-auth/api";
 import { apiKey } from "@better-auth/api-key";
 import { env } from "../../config/env.js";
 import { prisma } from "../../infrastructure/prisma.js";
-import { sendLinkEmail } from "../../infrastructure/mail.js";
+import { sendCodeEmail, sendLinkEmail } from "../../infrastructure/mail.js";
 import { ac, isFunctionalRole, roles } from "./permissions.js";
+import { syncEmail2FA } from "./two-factor-policy.js";
 
 const organizationKeyOptions = {
   references: "organization" as const,
@@ -26,6 +27,16 @@ export const auth = betterAuth({
   secret: env.BETTER_AUTH_SECRET,
   database: prismaAdapter(prisma, { provider: "postgresql" }),
   trustedOrigins: [env.WEB_ORIGIN],
+  hooks: {
+    before: createAuthMiddleware(async (ctx) => {
+      if (ctx.path === "/two-factor/enable" || ctx.path === "/two-factor/disable") {
+        throw new APIError("FORBIDDEN", { message: "Email 2FA is managed by organization policy" });
+      }
+      if (ctx.path === "/sign-in/email" && typeof ctx.body?.email === "string") {
+        await syncEmail2FA(ctx.body.email);
+      }
+    }),
+  },
   rateLimit: {
     enabled: true,
     storage: "database",
@@ -51,6 +62,18 @@ export const auth = betterAuth({
     },
   },
   plugins: [
+    twoFactor({
+      trustDeviceMaxAge: 90 * 24 * 60 * 60,
+      totpOptions: { disable: true },
+      otpOptions: {
+        digits: 6,
+        period: 10, // Better Auth interprets OTP period in minutes.
+        storeOTP: "encrypted",
+        async sendOTP({ user, otp }) {
+          await sendCodeEmail(user.email, otp);
+        },
+      },
+    }),
     organization({
       ac,
       roles,
