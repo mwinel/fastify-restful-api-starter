@@ -22,7 +22,7 @@ export function registerProjectRoutes(app: FastifyInstance): void {
     const params = paramsSchema.safeParse(request.params);
     const body = bodySchema.safeParse(request.body);
     if (!params.success || !body.success) return reply.code(400).send({ code: "BAD_REQUEST" });
-    if (!await requireOrganizationAccess(request, reply, params.data.organizationId, "write")) return;
+    if (!await requireOrganizationAccess(request, reply, params.data.organizationId, "create")) return;
     const project = await prisma.project.create({
       data: { organizationId: params.data.organizationId, name: body.data.name },
     });

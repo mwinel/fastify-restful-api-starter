@@ -34,7 +34,7 @@ test("API keys enforce organization and action without falling back to cookies",
   });
   type Request = Parameters<typeof requireOrganizationAccess>[0];
   type Reply = Parameters<typeof requireOrganizationAccess>[1];
-  const check = async (org: string, action: "read" | "write") => {
+  const check = async (org: string, action: "read" | "create") => {
     const reply = response();
     const access = await requireOrganizationAccess(
       request as unknown as Request,
@@ -51,14 +51,14 @@ test("API keys enforce organization and action without falling back to cookies",
   assert.equal((await check("org-b", "read")).status, 403);
 
   verified = { valid: false, error: { code: "KEY_NOT_FOUND" }, key: null };
-  assert.equal((await check("org-a", "write")).status, 401);
+  assert.equal((await check("org-a", "create")).status, 401);
 
   verified = {
     valid: true,
     error: null,
     key: { id: "key-2", configId: "org-read-write", referenceId: "org-a" },
   };
-  assert.deepEqual(await check("org-a", "write"), {
+  assert.deepEqual(await check("org-a", "create"), {
     access: { kind: "api-key", keyId: "key-2" }, status: 200,
   });
   assert.equal(session.mock.callCount(), 0);

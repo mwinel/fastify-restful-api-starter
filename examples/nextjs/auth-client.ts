@@ -14,7 +14,8 @@ export const authClient = createAuthClient({
 // requestPasswordReset({ email, redirectTo: `${location.origin}/reset-password` })
 // resetPassword({ token: new URLSearchParams(location.search).get("token")!, newPassword })
 // organization.create({ name, slug })
-// organization.inviteMember({ organizationId, email, role: "member" })
+// GET /v1/organization-roles for the invitation picker.
+// organization.inviteMember({ organizationId, email, role: "editor" })
 // organization.acceptInvitation({ invitationId })
 // organization.removeMember({ organizationId, memberIdOrEmail })
 // createOrganizationApiKey({ organizationId, name, access: "read", expiration: 30 })

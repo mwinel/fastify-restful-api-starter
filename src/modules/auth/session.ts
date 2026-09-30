@@ -1,17 +1,16 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { fromNodeHeaders } from "better-auth/node";
 import { auth } from "./auth.js";
-import { apiKeyConfigIds } from "./permissions.js";
+import { apiKeyConfigIds, canPerformProjectAction, type ProjectAction } from "./permissions.js";
 import { prisma } from "../../infrastructure/prisma.js";
 
 type Access = { kind: "session"; role: string } | { kind: "api-key"; keyId: string };
-type Action = "read" | "write";
 
 export async function requireOrganizationAccess(
   request: FastifyRequest,
   reply: FastifyReply,
   organizationId: string,
-  action: Action,
+  action: ProjectAction,
 ): Promise<Access | null> {
   // A supplied key always wins. An invalid or mismatched key cannot fall back
   // to a browser session cookie carried on the same request.
@@ -22,7 +21,7 @@ export async function requireOrganizationAccess(
       return null;
     }
     const result = await auth.api.verifyApiKey({
-      body: { key: value, permissions: { projects: [action] } },
+      body: { key: value, permissions: { project: [action] } },
     });
     if (!result.valid || !result.key) {
       if (result.error?.code === "RATE_LIMITED") {
@@ -55,10 +54,7 @@ export async function requireOrganizationAccess(
     reply.code(403).send({ code: "FORBIDDEN", message: "Organization access denied" });
     return null;
   }
-  if (
-    action === "write" &&
-    !membership.role.split(",").some((role) => role === "owner" || role === "admin")
-  ) {
+  if (!canPerformProjectAction(membership.role, action)) {
     reply.code(403).send({ code: "FORBIDDEN", message: "Insufficient permissions" });
     return null;
   }

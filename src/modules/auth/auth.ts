@@ -6,7 +6,7 @@ import { apiKey } from "@better-auth/api-key";
 import { env } from "../../config/env.js";
 import { prisma } from "../../infrastructure/prisma.js";
 import { sendLinkEmail } from "../../infrastructure/mail.js";
-import { ac, roles } from "./permissions.js";
+import { ac, isFunctionalRole, roles } from "./permissions.js";
 
 const organizationKeyOptions = {
   references: "organization" as const,
@@ -64,8 +64,8 @@ export const auth = betterAuth({
       organizationHooks: {
         beforeCreateInvitation: async ({ invitation }) => {
           // Granting owner is a separate transfer decision, never an invitation.
-          if (invitation.role !== "member") {
-            throw new APIError("FORBIDDEN", { message: "Only member invitations are enabled" });
+          if (!isFunctionalRole(invitation.role)) {
+            throw new APIError("FORBIDDEN", { message: "Choose a predefined functional role" });
           }
         },
         beforeRemoveMember: async ({ member }) => {
@@ -83,13 +83,13 @@ export const auth = betterAuth({
         ...organizationKeyOptions,
         configId: "org-read",
         defaultPrefix: "org_read_",
-        permissions: { defaultPermissions: { projects: ["read"] } },
+        permissions: { defaultPermissions: { project: ["read"] } },
       },
       {
         ...organizationKeyOptions,
         configId: "org-read-write",
         defaultPrefix: "org_rw_",
-        permissions: { defaultPermissions: { projects: ["read", "write"] } },
+        permissions: { defaultPermissions: { project: ["read", "create"] } },
       },
     ]),
   ],

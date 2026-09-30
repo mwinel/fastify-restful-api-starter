@@ -30,13 +30,22 @@ For schema changes: edit `prisma/schema.prisma`, run `npm run db:migrate -- --na
 | Invite member | `POST /api/auth/organization/invite-member` |
 | Accept invitation | `POST /api/auth/organization/accept-invitation` |
 | Remove member | `POST /api/auth/organization/remove-member` |
+| Invitation role options | `GET /v1/organization-roles` |
 | List projects | `GET /v1/organizations/:organizationId/projects` |
 | Create project | `POST /v1/organizations/:organizationId/projects` |
 | Create API key | `POST /api/auth/api-key/create` |
 | List API keys | `GET /api/auth/api-key/list?organizationId=...` |
 | Revoke API key | `POST /api/auth/api-key/delete` |
 
-Email verification is required before sign-in. Invitations only grant `member`. Better Auth's default owner/admin permissions control sending invitations and removing members. Owner removal and role changes are disabled; organization deletion is disabled. These policies are enforced by Better Auth organization hooks, not the UI. The project routes query membership on every request, so access to a removed organization stops immediately despite a still-valid account session. The project example allows all members to list and only owner/admin to create.
+Email verification is required before sign-in. Invitees receive one of the predefined functional roles below. Fetch `GET /v1/organization-roles` to populate a role picker, then pass the selected `id` as `role` to Better Auth's `organization.inviteMember({ organizationId, email, role })`. The server rejects owner, admin, legacy member, unknown, and combined roles during invitation. Better Auth's default owner/admin permissions control sending invitations and removing members. Owner removal and role changes are disabled; organization deletion is disabled. These policies are enforced by Better Auth organization hooks, not the UI.
+
+| Invitation role | `project:read` | `project:create` | `project:update` | `project:delete` |
+| --- | :---: | :---: | :---: | :---: |
+| Viewer | Yes | | | |
+| Editor | Yes | Yes | Yes | |
+| Manager | Yes | Yes | Yes | Yes |
+
+Owner and admin have all four project permissions plus their organization management permissions. Existing Better Auth `member` records retain read access. The project example currently implements list (`project:read`) and create (`project:create`); use the corresponding action in `requireOrganizationAccess` when adding update and delete routes. The guard queries membership for every session request, so removed members lose access immediately and no active organization cookie decides the tenant. Unknown roles fail closed. API keys use independent organization scopes and the same project action names.
 
 Better Auth rate limits sign-up, sign-in, reset requests, and invitations. Limits use the shared PostgreSQL `rateLimit` table so they work across API instances. Put the API behind a trusted proxy and forward the actual client IP; do not accept arbitrary client-supplied forwarding headers.
 
@@ -48,6 +57,8 @@ Organization owners and admins can create, list, and revoke keys using their sig
 | --- | --- |
 | `org-read` | `GET /v1/organizations/:organizationId/projects` |
 | `org-read-write` | GET and `POST /v1/organizations/:organizationId/projects` |
+
+The read preset grants `project:read`; the read-write preset grants `project:read` and `project:create`. A key cannot call future update/delete routes without those actions explicitly granted.
 
 Use `examples/nextjs/create-api-key.ts` to create a key with a 30, 60, or 90 day duration, or a custom date between 1 and 365 days away. For example, `createOrganizationApiKey({ organizationId, name: "Partner app", access: "read-write", expiration: 60 })`. A date-only string such as `"2026-12-31"` expires at the end of that day in the browser's local timezone. Better Auth receives `expiresIn` in **seconds** and enforces the 1–365 day range on the server; if a caller omits it, the default is 90 days. Creation returns an opaque `key` value. **Show and copy this secret once**; subsequent list/get calls return only metadata, not the secret. The key itself is the credential: there is no separate client ID and secret pair. Keys are hashed in the database and limited to 120 verifications per minute. Use `authClient.apiKey.list({ query: { organizationId } })` to view metadata and `authClient.apiKey.delete({ configId, keyId })` to revoke immediately. Create a replacement before the old key expires.
 
