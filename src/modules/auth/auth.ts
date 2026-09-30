@@ -13,8 +13,10 @@ const organizationKeyOptions = {
   requireName: true,
   rateLimit: { enabled: true, timeWindow: 60_000, maxRequests: 120 },
   keyExpiration: {
-    defaultExpiresIn: 90 * 24 * 60 * 60 * 1000,
-    disableCustomExpiresTime: true,
+    defaultExpiresIn: 90 * 24 * 60 * 60,
+    disableCustomExpiresTime: false,
+    minExpiresIn: 1,
+    maxExpiresIn: 365,
   },
 };
 
